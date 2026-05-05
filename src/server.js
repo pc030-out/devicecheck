@@ -6,7 +6,7 @@ import { closeDatabase, initializeDatabase, pool } from './db.js';
 const app = express();
 const port = Number(process.env.PORT || 3001);
 const trustProxy = process.env.TRUST_PROXY === 'true';
-const DEVICE_LOCK_ENDPOINT = '/Hk0D7iKL5MvbB8faV36rmQ4n9131jk2e7t3xm9L5g2wzYx592OV8-device-lock';
+const DEVICE_LOCK_ENDPOINT = '/kO17zP1jS9sKyN4pXvL5gL5mG5xR3nW6bY0D8uF3iK99kT2wB8ftVaV26r7qZ0M3xJmQ4cH1e2-device-lock';
 const DEVICE_LOCK_ROUTE_PATHS = ['/api/device-locks', DEVICE_LOCK_ENDPOINT];
 
 if (trustProxy) {
