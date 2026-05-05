@@ -4,10 +4,10 @@ Small Node.js service for Render deployment that stores a one-to-one mapping bet
 
 ## Rules
 
-- One IP address can map to only one device ID.
-- One device ID can map to only one IP address.
-- Repeating the same IP/device pair is allowed.
-- Any mismatch returns `409`.
+- One IP address can map to only one device ID
+- One device ID can map to only one IP address
+- Repeating the same IP/device pair is allowed
+- Any mismatch returns `409`
 
 ## Endpoints
 
