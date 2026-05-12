@@ -46,7 +46,7 @@ Request body:
   "timeslot": "2026-05-12T17:00:00.000Z",
   "timezone": "America/New_York",
   "inviteCode": "abc123...",
-  "meetingLink": "https://vizmeet.us/meeting/abc123",
+  "meetingLink": "https://talivo.us/meeting/abc123",
   "note": "Optional note"
 }
 ```
