@@ -206,7 +206,13 @@ app.post('/api/calendly/book', async (req, res) => {
 
   const availabilityCollection = Array.isArray(availabilityRes.data?.collection) ? availabilityRes.data.collection : [];
   const selectedIso = parsedTimeslot.toISOString();
-  const slotExists = availabilityCollection.some((item) => item?.start_time === selectedIso);
+  const selectedTs = parsedTimeslot.getTime();
+  const slotExists = availabilityCollection.some((item) => {
+    const startTime = typeof item?.start_time === 'string' ? item.start_time : '';
+    if (!startTime) return false;
+    const slotTs = new Date(startTime).getTime();
+    return Number.isFinite(slotTs) && slotTs === selectedTs;
+  });
 
   if (!slotExists) {
     return res.status(409).json({
