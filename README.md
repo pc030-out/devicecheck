@@ -72,10 +72,28 @@ npm run dev
 Run this from the repo root after setting `CALENDLY_API_TOKEN` in `backend/.env`:
 
 ```bash
-set +H && set -a && source backend/.env && set +a && node -e "const b=process.env.CALENDLY_API_BASE_URL||'https://api.calendly.com'; const t=process.env.CALENDLY_API_TOKEN; fetch(b+'/users/me',{headers:{Authorization:'Bearer '+t}}).then(r=>r.json()).then(j=>{const u=j.resource.uri; return fetch(b+'/event_types?user='+encodeURIComponent(u),{headers:{Authorization:'Bearer '+t}})}).then(r=>r.json()).then(j=>{(j.collection||[]).forEach(e=>console.log(e.name+' => '+e.uri));}).catch(console.error)"
+set +H && set -a && source backend/.env && set +a && node -e "
+const t = process.env.CALENDLY_API_TOKEN;
+fetch('https://api.calendly.com/users/me', { headers: { Authorization: 'Bearer ' + t } })
+  .then(r => r.json())
+  .then(u => fetch('https://api.calendly.com/event_types?user=' + u.resource.uri, { headers: { Authorization: 'Bearer ' + t } }))
+  .then(r => r.json())
+  .then(d => d.collection.forEach(e => console.log(e.kind, '|', e.name, '|', e.uri)))
+  .catch(console.error)
+"
 ```
 
-Pick the URI for the event type you want (for example `30 Minute Meeting`) and set it as `CALENDLY_EVENT_TYPE_URI` in `backend/.env`.
+Example output:
+
+```
+solo  | 30 Minute Meeting                  | https://api.calendly.com/event_types/ce6b83d6-...
+group | Introductory Call - Parallel Studios | https://api.calendly.com/event_types/9f1388ec-...
+```
+
+- `solo` = One-on-One event (single booking per slot)
+- `group` = Group event (multiple people can book the same slot — no per-slot limit)
+
+Copy the URI for the event type you want and set it as `CALENDLY_EVENT_TYPE_URI` in `backend/.env` and in the Render environment variables.
 
 ## Render Setup
 
