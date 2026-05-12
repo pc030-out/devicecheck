@@ -151,10 +151,10 @@ Set these on the web service under **Environment** → **Environment Variables**
 
 ```
 # Single origin
-CORS_ORIGIN=https://vizhire.us
+CORS_ORIGIN=https://vizmeet.us
 
 # Multiple origins (comma-separated)
-CORS_ORIGIN=https://vizhire.us,https://www.vizhire.us
+CORS_ORIGIN=https://vizmeet.us,https://www.vizmeet.us
 ```
 
 ---
