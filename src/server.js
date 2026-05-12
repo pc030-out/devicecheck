@@ -221,45 +221,37 @@ app.post('/api/calendly/book', async (req, res) => {
     });
   }
 
-  const questionsAndAnswers = [];
-  if (meetingLink) {
-    questionsAndAnswers.push({ question: 'Meeting link', answer: meetingLink });
-  }
-  if (inviteCode) {
-    questionsAndAnswers.push({ question: 'Invite code', answer: inviteCode });
-  }
-  if (note) {
-    questionsAndAnswers.push({ question: 'Note', answer: note });
-  }
-
-  const createInviteePayload = {
-    event_type: CALENDLY_EVENT_TYPE_URI,
-    start_time: selectedIso,
-    invitee: {
-      email,
-      name,
-      timezone,
-    },
-    questions_and_answers: questionsAndAnswers,
-  };
-
-  const bookingRes = await calendlyRequest('/invitees', {
-    method: 'POST',
-    body: JSON.stringify(createInviteePayload),
+  const selectedSlot = availabilityCollection.find((item) => {
+    const startTime = typeof item?.start_time === 'string' ? item.start_time : '';
+    if (!startTime) return false;
+    const slotTs = new Date(startTime).getTime();
+    return Number.isFinite(slotTs) && slotTs === selectedTs;
   });
 
-  if (!bookingRes.ok) {
-    return res.status(bookingRes.status || 502).json({
+  const schedulingUrlRaw = typeof selectedSlot?.scheduling_url === 'string' ? selectedSlot.scheduling_url : '';
+  if (!schedulingUrlRaw) {
+    return res.status(500).json({
       result: false,
-      status: bookingRes.message,
-      data: bookingRes.data,
+      status: 'Calendly did not return a scheduling URL for this slot.',
     });
   }
 
-  return res.status(201).json({
+  const schedulingUrl = new URL(schedulingUrlRaw);
+  if (email) schedulingUrl.searchParams.set('email', email);
+  if (name) schedulingUrl.searchParams.set('name', name);
+  if (timezone) schedulingUrl.searchParams.set('timezone', timezone);
+  if (meetingLink) schedulingUrl.searchParams.set('a1', meetingLink);
+  if (inviteCode) schedulingUrl.searchParams.set('a2', inviteCode);
+  if (note) schedulingUrl.searchParams.set('a3', note);
+
+  return res.status(200).json({
     result: true,
-    status: 'calendly booking created',
-    data: bookingRes.data,
+    status: 'scheduling link generated',
+    data: {
+      schedulingUrl: schedulingUrl.toString(),
+      startTime: selectedIso,
+      timezone,
+    },
   });
 });
 
