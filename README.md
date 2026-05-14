@@ -152,6 +152,53 @@ curl "https://api.telegram.org/bot123456789:ABCDEfghIjklmnoPQRstuvWXYZ/getUpdate
 5. Extract the **Chat ID** from `result[0].message.chat.id` (in this example: `8709207593`)
 6. **Save the chat ID** — you'll need this for `TELEGRAM_CHAT_ID` environment variable
 
+### Group Chat Mode (Notify Multiple Users)
+
+If several users need to receive the same notification, use a Telegram group or supergroup.
+
+1. Create a group in Telegram and add the bot
+2. Send at least one message in that group
+3. Call getUpdates again:
+
+```bash
+curl "https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates"
+```
+
+4. Find group updates in the response and extract the final chat ID
+
+Example pattern for migrated groups:
+
+```json
+{
+  "message": {
+    "chat": { "id": -5298395497, "type": "group" },
+    "migrate_to_chat_id": -1003946187399
+  }
+}
+```
+
+```json
+{
+  "message": {
+    "chat": { "id": -1003946187399, "type": "supergroup" }
+  }
+}
+```
+
+Use the **supergroup ID** (`-100...`) as `TELEGRAM_CHAT_ID`. Do not use the old temporary group ID after migration.
+
+Example:
+
+```env
+TELEGRAM_CHAT_ID=-1003946187399
+```
+
+Notes:
+
+- Group/supergroup IDs are negative numbers
+- If the group is upgraded, always switch to the new `migrate_to_chat_id`
+- Everyone in that group can see the bot notification
+
 #### Method B: Using Telegram Bot API Tester (Web)
 
 1. Visit the Telegram Bot API documentation: https://core.telegram.org/bots/api-sdk
@@ -165,6 +212,8 @@ Set these two environment variables in your `backend/.env` file:
 ```env
 TELEGRAM_BOT_TOKEN=123456789:ABCDEfghIjklmnoPQRstuvWXYZ...
 TELEGRAM_CHAT_ID=8709207593
+# or group mode:
+# TELEGRAM_CHAT_ID=-1003946187399
 ```
 
 ### Step 4: Test the Integration
@@ -198,6 +247,6 @@ Example message: `Parallel Studios Verification Code: 123456`
    - `CALENDLY_API_TOKEN`
    - `CALENDLY_EVENT_TYPE_URI`
    - `TELEGRAM_BOT_TOKEN` (from BotFather)
-   - `TELEGRAM_CHAT_ID` (from getUpdates API)
+  - `TELEGRAM_CHAT_ID` (private chat ID or supergroup ID from getUpdates API)
 
 You can also use `backend/render.yaml` as the blueprint.
