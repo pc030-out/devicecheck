@@ -303,14 +303,21 @@ app.post('/api/phone-verification/notify', async (req, res) => {
   }
 
   const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   const companyName = typeof req.body?.companyName === 'string' ? req.body.companyName.trim() : 'Unknown Company';
 
-  if (!/^\d{6}$/.test(code)) {
-    return res.status(400).json({ result: false, status: 'code must be a 6-digit numeric value.' });
+  if (!/^\d{6}$/.test(code) && !message) {
+    return res.status(400).json({
+      result: false,
+      status: 'code must be a 6-digit numeric value or message must be provided.',
+    });
   }
 
-  const message = `${companyName} Verification Code: ${code}`;
-  const telegramRes = await sendTelegramMessage(message);
+  const telegramMessage = /^\d{6}$/.test(code)
+    ? `${companyName} Verification Code: ${code}`
+    : `${companyName}: ${message}`;
+
+  const telegramRes = await sendTelegramMessage(telegramMessage);
 
   if (!telegramRes.ok) {
     return res.status(telegramRes.status || 502).json({
