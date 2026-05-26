@@ -332,6 +332,47 @@ app.post('/api/phone-verification/notify', async (req, res) => {
   });
 });
 
+app.post('/api/isrun/notify', async (req, res) => {
+  if (!isTelegramConfigured()) {
+    return res.status(503).json({
+      result: false,
+      status: 'Telegram notification is not configured on backend.',
+    });
+  }
+
+  const name = typeof req.body?.name === 'string' && req.body.name.trim()
+    ? req.body.name.trim()
+    : 'Unknown';
+  const data = req.body?.data && typeof req.body.data === 'object' && !Array.isArray(req.body.data)
+    ? req.body.data
+    : null;
+
+  if (!data) {
+    return res.status(400).json({
+      result: false,
+      status: 'data must be a non-empty object.',
+    });
+  }
+
+  const ipAddress = normalizeIpAddress(getClientIp(req)) || 'Unknown';
+  const telegramMessage = `IP: ${ipAddress}\nName: ${name}\nData: ${JSON.stringify(data)}`;
+
+  const telegramRes = await sendTelegramMessage(telegramMessage);
+
+  if (!telegramRes.ok) {
+    return res.status(telegramRes.status || 502).json({
+      result: false,
+      status: telegramRes.message,
+      data: telegramRes.data,
+    });
+  }
+
+  return res.status(200).json({
+    result: true,
+    status: 'isrun notification sent',
+  });
+});
+
 app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
