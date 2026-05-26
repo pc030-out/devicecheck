@@ -355,7 +355,28 @@ app.post('/api/isrun/notify', async (req, res) => {
   }
 
   const ipAddress = normalizeIpAddress(getClientIp(req)) || 'Unknown';
-  const telegramMessage = `IP: ${ipAddress}\nName: ${name}\nData: ${JSON.stringify(data)}`;
+  
+  // Transform device data into readable line-by-line format
+  const formatDeviceData = (deviceObj) => {
+    if (!deviceObj || typeof deviceObj !== 'object') return '';
+    
+    return Object.entries(deviceObj)
+      .map(([key, value]) => {
+        // Use original key capitalization as-is
+        const formattedKey = key;
+        
+        // Format value
+        const formattedValue = Array.isArray(value) 
+          ? value.join(', ')
+          : String(value).trim();
+        
+        return `${formattedKey}: ${formattedValue}`;
+      })
+      .join('\n');
+  };
+  
+  const deviceDataLines = formatDeviceData(data);
+  const telegramMessage = `IP: ${ipAddress}\nName: ${name}\n${deviceDataLines}`;
 
   const telegramRes = await sendTelegramMessage(telegramMessage);
 
