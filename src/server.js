@@ -13,9 +13,8 @@ const CALENDLY_SLOT_MINUTES = Number(process.env.CALENDLY_SLOT_MINUTES || 30);
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 const AVAILABLE_PREFIXES = [
-  'kO17zP1jS9sKyN4pXvL5gL5mG5xR3nW6bY0D8uF3iK99kT2wB8ftVaV26r7qZ0M3xJmQ4cH1e2',
-  'Hk0D7iKL5MvbB8faV36rmQ4n9131jk2e7t3xm9L5g2wzYx592OV8',
-  'eV36rmbvx4u423e7t9HgLkePH3gfaPkhWQYx2OhE3d4C5V3wzYnj',
+  'eV36rmbvx4u423e7t9HgLkePH3gfaPkhWQYx2OhE3d4C5V3wzYnj', // talivo.us
+  'dFkLmNj3qRsTvW6YzAbCdEfGhIj8lMnOp1rStUvWxYzAbCdEfGh0', // interviewly.us
 ];
 const DEVICE_LOCK_ROUTE_PATHS = [
   '/api/device-locks',
