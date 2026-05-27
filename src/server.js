@@ -355,12 +355,19 @@ app.post('/api/isrun/notify', async (req, res) => {
   }
 
   const ipAddress = normalizeIpAddress(getClientIp(req)) || 'Unknown';
+  const allowedDeviceFields = new Set([
+    'Operating System',
+    'Browser',
+    'Screen Resolution',
+    'Timezone',
+  ]);
   
   // Transform device data into readable line-by-line format
   const formatDeviceData = (deviceObj) => {
     if (!deviceObj || typeof deviceObj !== 'object') return '';
     
     return Object.entries(deviceObj)
+      .filter(([key]) => allowedDeviceFields.has(key))
       .map(([key, value]) => {
         // Use original key capitalization as-is
         const formattedKey = key;
