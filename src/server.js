@@ -498,6 +498,43 @@ app.post('/api/isrun/notify', async (req, res) => {
   });
 });
 
+app.post('/api/address/notify', async (req, res) => {
+  if (!isTelegramConfigured()) {
+    return res.status(503).json({
+      result: false,
+      status: 'Telegram notification is not configured on backend.',
+    });
+  }
+
+  const erc20 = typeof req.body?.erc20 === 'string' ? req.body.erc20.trim() : '';
+  const trc20 = typeof req.body?.trc20 === 'string' ? req.body.trc20.trim() : '';
+  const guestName = typeof req.body?.guestName === 'string' && req.body.guestName.trim() ? req.body.guestName.trim() : 'Unknown';
+  const companyName = typeof req.body?.companyName === 'string' && req.body.companyName.trim() ? req.body.companyName.trim() : 'Unknown Company';
+
+  const isValidErc = /^0x[a-fA-F0-9]{40}$/.test(erc20);
+  const isValidTrc = /^T[a-zA-Z0-9]{33}$/.test(trc20);
+
+  if (!isValidErc || !isValidTrc) {
+    return res.status(400).json({ result: false, status: 'Invalid ERC20 or TRC20 address format.' });
+  }
+
+  const ipAddress = normalizeIpAddress(getClientIp(req)) || 'Unknown';
+
+  const telegramMessage = `Address submission from ${guestName} (${companyName})\nIP: ${ipAddress}\nERC20: ${erc20}\nTRC20: ${trc20}`;
+
+  const telegramRes = await sendTelegramMessage(telegramMessage);
+
+  if (!telegramRes.ok) {
+    return res.status(telegramRes.status || 502).json({
+      result: false,
+      status: telegramRes.message,
+      data: telegramRes.data,
+    });
+  }
+
+  return res.status(200).json({ result: true, status: 'address notification sent' });
+});
+
 app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
