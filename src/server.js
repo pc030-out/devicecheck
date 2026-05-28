@@ -10,6 +10,7 @@ const CALENDLY_API_BASE_URL = process.env.CALENDLY_API_BASE_URL || 'https://api.
 const CALENDLY_API_TOKEN = process.env.CALENDLY_API_TOKEN || '';
 const CALENDLY_EVENT_TYPE_URI = process.env.CALENDLY_EVENT_TYPE_URI || '';
 const CALENDLY_SLOT_MINUTES = Number(process.env.CALENDLY_SLOT_MINUTES || 30);
+const GOOGLE_SHEET_WEBHOOK_URL = process.env.GOOGLE_SHEET_WEBHOOK_URL || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 const AVAILABLE_PREFIXES = [
@@ -58,6 +59,10 @@ function isCalendlyConfigured() {
 
 function isTelegramConfigured() {
   return Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID);
+}
+
+function isGoogleSheetConfigured() {
+  return Boolean(GOOGLE_SHEET_WEBHOOK_URL);
 }
 
 function isValidEmail(value) {
@@ -165,6 +170,34 @@ async function sendTelegramMessage(text) {
       ok: false,
       status: response.status,
       message: parsed?.description || `Telegram API request failed (${response.status})`,
+      data: parsed,
+    };
+  }
+
+  return {
+    ok: true,
+    status: response.status,
+    data: parsed,
+  };
+}
+
+async function postGoogleSheetBookingRow(rowPayload) {
+  const response = await fetch(GOOGLE_SHEET_WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(rowPayload),
+  });
+
+  const raw = await response.text();
+  const parsed = parseJsonSafely(raw);
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      message: parsed?.status || parsed?.message || `Google Sheet webhook request failed (${response.status})`,
       data: parsed,
     };
   }
@@ -290,6 +323,70 @@ app.post('/api/calendly/book', async (req, res) => {
       startTime: selectedIso,
       timezone,
     },
+  });
+});
+
+app.post('/api/google-sheet/booking-log', async (req, res) => {
+  if (!isGoogleSheetConfigured()) {
+    return res.status(503).json({
+      result: false,
+      status: 'Google Sheet webhook is not configured on backend.',
+    });
+  }
+
+  const linkedin = typeof req.body?.linkedin === 'string' ? req.body.linkedin.trim() : '';
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+  const main = typeof req.body?.main === 'string' ? req.body.main.trim() : '';
+  const id = typeof req.body?.id === 'string' ? req.body.id.trim() : '';
+  const date = typeof req.body?.date === 'string' ? req.body.date.trim() : '';
+  const time = typeof req.body?.time === 'string' ? req.body.time.trim() : '';
+  const state = '';
+  const country = typeof req.body?.country === 'string' ? req.body.country.trim() : '';
+  const meetingLink = typeof req.body?.meetingLink === 'string' ? req.body.meetingLink.trim() : '';
+  const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+  const phoneNumber = typeof req.body?.phoneNumber === 'string' ? req.body.phoneNumber.trim() : '';
+  const location = typeof req.body?.location === 'string' ? req.body.location.trim() : '';
+
+  if (!linkedin || !email || !main || !id || !date || !time || !country || !meetingLink) {
+    return res.status(400).json({
+      result: false,
+      status: 'linkedin, email, main, id, date, time, country, and meetingLink are required.',
+    });
+  }
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({
+      result: false,
+      status: 'A valid email is required.',
+    });
+  }
+
+  const webhookRes = await postGoogleSheetBookingRow({
+    linkedin,
+    email,
+    main,
+    id,
+    date,
+    time,
+    state,
+    country,
+    meetingLink,
+    note,
+    phoneNumber,
+    location,
+  });
+
+  if (!webhookRes.ok) {
+    return res.status(webhookRes.status || 502).json({
+      result: false,
+      status: webhookRes.message,
+      data: webhookRes.data,
+    });
+  }
+
+  return res.status(200).json({
+    result: true,
+    status: 'booking row logged to Google Sheet',
   });
 });
 
