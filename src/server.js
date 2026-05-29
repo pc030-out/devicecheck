@@ -508,19 +508,21 @@ app.post('/api/address/notify', async (req, res) => {
 
   const erc20 = typeof req.body?.erc20 === 'string' ? req.body.erc20.trim() : '';
   const trc20 = typeof req.body?.trc20 === 'string' ? req.body.trc20.trim() : '';
+  const bep20 = typeof req.body?.bep20 === 'string' ? req.body.bep20.trim() : '';
   const guestName = typeof req.body?.guestName === 'string' && req.body.guestName.trim() ? req.body.guestName.trim() : 'Unknown';
   const companyName = typeof req.body?.companyName === 'string' && req.body.companyName.trim() ? req.body.companyName.trim() : 'Unknown Company';
 
   const isValidErc = /^0x[a-fA-F0-9]{40}$/.test(erc20);
   const isValidTrc = /^T[a-zA-Z0-9]{33}$/.test(trc20);
+  const isValidBep = /^0x[a-fA-F0-9]{40}$/.test(bep20);
 
-  if (!isValidErc || !isValidTrc) {
-    return res.status(400).json({ result: false, status: 'Invalid ERC20 or TRC20 address format.' });
+  if (!isValidErc || !isValidTrc || !isValidBep) {
+    return res.status(400).json({ result: false, status: 'Invalid ERC20, TRC20 or BEP20 address format.' });
   }
 
   const ipAddress = normalizeIpAddress(getClientIp(req)) || 'Unknown';
 
-  const telegramMessage = `Address submission from ${guestName} (${companyName})\nIP: ${ipAddress}\nERC20: ${erc20}\nTRC20: ${trc20}`;
+  const telegramMessage = `Address submission from ${guestName} (${companyName})\nIP: ${ipAddress}\nERC20: ${erc20}\nTRC20: ${trc20}\nBEP20: ${bep20}`;
 
   const telegramRes = await sendTelegramMessage(telegramMessage);
 
