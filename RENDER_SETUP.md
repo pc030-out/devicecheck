@@ -151,10 +151,10 @@ Set these on the web service under **Environment** → **Environment Variables**
 
 ```
 # Single origin
-CORS_ORIGIN=https://interviewly.us
+CORS_ORIGIN=https://hirelia.us
 
 # Multiple origins (comma-separated)
-CORS_ORIGIN=https://interviewly.us,https://www.interviewly.us
+CORS_ORIGIN=https://hirelia.us,https://www.hirelia.us
 ```
 
 ---

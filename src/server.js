@@ -15,7 +15,7 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 const AVAILABLE_PREFIXES = [
   'eV36rmbvx4u423e7t9HgLkePH3gfaPkhWQYx2OhE3d4C5V3wzYnj', // talivo.us
-  'dFkLmNj3qRsTvW6YzAbCdEfGhIj8lMnOp1rStUvWxYzAbCdEfGh0', // interviewly.us
+  'dFkLmNj3qRsTvW6YzAbCdEfGhIj8lMnOp1rStUvWxYzAbCdEfGh0', // hirelia.us
 ];
 const DEVICE_LOCK_ROUTE_PATHS = [
   '/api/device-locks',
