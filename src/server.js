@@ -1,7 +1,11 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
-import { closeDatabase, initializeDatabase, pool } from './db.js';
+
+// DB imports are conditional so the server can run without DATABASE_URL for local smoke tests
+let closeDatabase = async () => {};
+let initializeDatabase = async () => {};
+let pool = null;
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
@@ -37,6 +41,37 @@ app.use(
   })
 );
 app.use(express.json());
+
+// Return server time and Eastern Time breakdown for client-side use
+app.get('/api/time', async (_req, res) => {
+  try {
+    const now = new Date();
+    const utc = now.toISOString();
+    const EASTERN = 'America/New_York';
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: EASTERN,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).formatToParts(now);
+
+    const values = Object.fromEntries(
+      parts.filter((p) => p.type !== 'literal').map((p) => [p.type, p.value])
+    );
+
+    const dateKey = `${values.year}-${values.month}-${values.day}`;
+    const minutes = Number(values.hour) * 60 + Number(values.minute);
+
+    return res.json({ result: true, utc, eastern: { dateKey, minutes } });
+  } catch (err) {
+    return res
+      .status(500)
+      .json({ result: false, status: 'failed to compute server time' });
+  }
+});
 
 function getClientIp(req) {
   const forwardedFor = req.headers['x-forwarded-for'];
@@ -862,7 +897,20 @@ app.post(DEVICE_LOCK_ROUTE_PATHS, async (req, res) => {
 });
 
 async function startServer() {
-  await initializeDatabase();
+  if (process.env.DATABASE_URL) {
+    try {
+      const db = await import('./db.js');
+      initializeDatabase = db.initializeDatabase;
+      closeDatabase = db.closeDatabase;
+      pool = db.pool;
+      await initializeDatabase();
+    } catch (err) {
+      console.error('Failed to initialize database', err);
+      throw err;
+    }
+  } else {
+    console.warn('DATABASE_URL not set — skipping DB initialization (smoke-test mode).');
+  }
 
   app.listen(port, () => {
     console.log(`Device lock backend listening on port ${port}`);
