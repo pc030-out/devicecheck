@@ -162,83 +162,6 @@ async function fetchCalendlyAvailability(startTimeIso) {
   return calendlyRequest(`/event_type_available_times?${params.toString()}`);
 }
 
-async function fetchCalendlyAvailabilityWindow(startTimeIso, endTimeIso) {
-  const params = new URLSearchParams({
-    event_type: CALENDLY_EVENT_TYPE_URI,
-    start_time: startTimeIso,
-    end_time: endTimeIso,
-  });
-
-  return calendlyRequest(`/event_type_available_times?${params.toString()}`);
-}
-
-function getEasternDateKeyAndTime(iso) {
-  try {
-    const date = new Date(iso);
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: EASTERN_TIME_ZONE,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).formatToParts(date);
-
-    const values = Object.fromEntries(
-      parts.filter((p) => p.type !== 'literal').map((p) => [p.type, p.value])
-    );
-    const dateKey = `${values.year}-${values.month}-${values.day}`;
-    const time = `${values.hour}:${values.minute}`;
-    const weekday = new Date(
-      Date.UTC(
-        Number(values.year),
-        Number(values.month) - 1,
-        Number(values.day)
-      )
-    ).getUTCDay();
-    return { dateKey, time, weekday };
-  } catch (e) {
-    return null;
-  }
-}
-
-async function fetchAvailabilityRange(days = 14) {
-  const resultsMap = new Map();
-  const base = Date.now();
-
-  for (let offset = 0; offset < days; offset++) {
-    const dayStart = new Date(base + offset * 24 * 60 * 60 * 1000);
-    const dayEnd = new Date(base + (offset + 1) * 24 * 60 * 60 * 1000);
-    const availabilityRes = await fetchCalendlyAvailabilityWindow(
-      dayStart.toISOString(),
-      dayEnd.toISOString()
-    );
-    if (!availabilityRes.ok) continue;
-    const collection = Array.isArray(availabilityRes.data?.collection)
-      ? availabilityRes.data.collection
-      : [];
-    for (const item of collection) {
-      const startTime =
-        typeof item?.start_time === 'string' ? item.start_time : '';
-      if (!startTime) continue;
-      const info = getEasternDateKeyAndTime(startTime);
-      if (!info) continue;
-      // Skip weekends
-      if (info.weekday === 0 || info.weekday === 6) continue;
-      if (!resultsMap.has(info.dateKey))
-        resultsMap.set(info.dateKey, new Set());
-      resultsMap.get(info.dateKey).add(info.time);
-    }
-  }
-
-  const out = Array.from(resultsMap.entries()).map(([dateKey, timesSet]) => ({
-    dateKey,
-    times: Array.from(timesSet).sort(),
-  }));
-  return out.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
-}
-
 async function sendTelegramMessage(text) {
   const endpoint = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
   const response = await fetch(endpoint, {
@@ -350,43 +273,7 @@ app.get('/api/calendly/availability', async (req, res) => {
   });
 });
 
-app.get('/api/calendly/availability-range', async (req, res) => {
-  if (!isCalendlyConfigured()) {
-    return res
-      .status(503)
-      .json({
-        result: false,
-        status: 'Calendly API is not configured on backend.',
-      });
-  }
-
-  const days = Number(req.query.days || 14);
-  if (!Number.isInteger(days) || days <= 0 || days > 60) {
-    return res
-      .status(400)
-      .json({
-        result: false,
-        status: 'days must be an integer between 1 and 60.',
-      });
-  }
-
-  try {
-    const availability = await fetchAvailabilityRange(days);
-    return res.json({
-      result: true,
-      status: 'availability range fetched',
-      data: availability,
-    });
-  } catch (err) {
-    console.error('Failed to fetch availability range', err);
-    return res
-      .status(502)
-      .json({
-        result: false,
-        status: 'Failed to fetch availability from Calendly.',
-      });
-  }
-});
+// (availability-range endpoint removed; backend uses single-window availability)
 
 app.post('/api/calendly/book', async (req, res) => {
   if (!isCalendlyConfigured()) {
