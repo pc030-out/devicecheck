@@ -62,14 +62,14 @@ Push all changes to your default branch (e.g. `main`) before continuing.
 2. Click **New +** → **PostgreSQL**
 3. Fill in the form:
 
-   | Field | Value |
-   |---|---|
-   | **Name** | `device-lock-db` (or any name you prefer) |
-   | **Database** | `device_lock` |
-   | **User** | leave as auto-generated |
-   | **Region** | choose the same region as your web service |
-   | **PostgreSQL Version** | `16` (latest stable) |
-   | **Plan** | `Free` |
+   | Field                  | Value                                      |
+   | ---------------------- | ------------------------------------------ |
+   | **Name**               | `device-lock-db` (or any name you prefer)  |
+   | **Database**           | `device_lock`                              |
+   | **User**               | leave as auto-generated                    |
+   | **Region**             | choose the same region as your web service |
+   | **PostgreSQL Version** | `16` (latest stable)                       |
+   | **Plan**               | `Free`                                     |
 
 4. Click **Create Database**
 5. Wait ~1 minute for provisioning
@@ -78,10 +78,10 @@ Push all changes to your default branch (e.g. `main`) before continuing.
 
 On the database's dashboard page scroll down to **Connections**. You will see two connection strings:
 
-| Name | When to use |
-|---|---|
+| Name                      | When to use                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------ |
 | **Internal Database URL** | Use this for the web service on Render (same network, faster, no SSL overhead) |
-| **External Database URL** | Use this for local development or tools like DBeaver |
+| **External Database URL** | Use this for local development or tools like DBeaver                           |
 
 Copy and save both — you will need them in the steps below.
 
@@ -97,16 +97,16 @@ Copy and save both — you will need them in the steps below.
 4. Select your repository from the list
 5. Fill in the form:
 
-   | Field | Value |
-   |---|---|
-   | **Name** | `princegd-device-lock-backend` (or any name) |
-   | **Region** | Same region as your database |
-   | **Branch** | `main` |
-   | **Root Directory** | `backend` |
-   | **Runtime** | `Node` |
-   | **Build Command** | `npm install` |
-   | **Start Command** | `npm start` |
-   | **Plan** | `Free` |
+   | Field              | Value                                        |
+   | ------------------ | -------------------------------------------- |
+   | **Name**           | `princegd-device-lock-backend` (or any name) |
+   | **Region**         | Same region as your database                 |
+   | **Branch**         | `main`                                       |
+   | **Root Directory** | `backend`                                    |
+   | **Runtime**        | `Node`                                       |
+   | **Build Command**  | `npm install`                                |
+   | **Start Command**  | `npm start`                                  |
+   | **Plan**           | `Free`                                       |
 
 6. Scroll down to **Advanced** and add environment variables (see [Section 6](#6-environment-variables))
 7. Click **Create Web Service**
@@ -139,22 +139,22 @@ You can connect the database to the web service in two ways:
 
 Set these on the web service under **Environment** → **Environment Variables**:
 
-| Variable | Value | Notes |
-|---|---|---|
-| `DATABASE_URL` | `<Internal Database URL from Render>` | Required. Auto-set if you link the database. |
-| `CORS_ORIGIN` | `https://yourdomain.com` | Required. The frontend origin allowed to call this API. Comma-separate multiple origins. |
-| `TRUST_PROXY` | `true` | Required on Render. Enables correct IP extraction from `x-forwarded-for`. |
-| `NODE_VERSION` | `20` | Optional. Ensures the right Node version is used. |
-| `PORT` | *(leave blank)* | Render sets this automatically. Do not override it. |
+| Variable       | Value                                 | Notes                                                                                    |
+| -------------- | ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `DATABASE_URL` | `<Internal Database URL from Render>` | Required. Auto-set if you link the database.                                             |
+| `CORS_ORIGIN`  | `https://yourdomain.com`              | Required. The frontend origin allowed to call this API. Comma-separate multiple origins. |
+| `TRUST_PROXY`  | `true`                                | Required on Render. Enables correct IP extraction from `x-forwarded-for`.                |
+| `NODE_VERSION` | `20`                                  | Optional. Ensures the right Node version is used.                                        |
+| `PORT`         | _(leave blank)_                       | Render sets this automatically. Do not override it.                                      |
 
 ### Example `CORS_ORIGIN` values
 
 ```
 # Single origin
-CORS_ORIGIN=https://hirelia.us
+CORS_ORIGIN=https://slothr.us
 
 # Multiple origins (comma-separated)
-CORS_ORIGIN=https://hirelia.us,https://www.hirelia.us
+CORS_ORIGIN=https://slothr.us,https://www.slothr.us
 ```
 
 ---
@@ -315,7 +315,7 @@ services:
 
 ### IP address always shows as `::1` or `127.0.0.1`
 
-- `TRUST_PROXY` is not set to `true`  
+- `TRUST_PROXY` is not set to `true`
 - Render routes traffic through a proxy — without `trust proxy`, Express sees only the proxy IP, not the real client IP
 
 ### CORS errors in the browser

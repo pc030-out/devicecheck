@@ -21,7 +21,8 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 const AVAILABLE_PREFIXES = [
   'eV36rmbvx4u423e7t9HgLkePH3gfaPkhWQYx2OhE3d4C5V3wzYnj', // talivo.us
-  'dFkLmNj3qRsTvW6YzAbCdEfGhIj8lMnOp1rStUvWxYzAbCdEfGh0', // hirelia.us
+  'dFkLmNj3qRsTvW6YzAbCdEfGhIj8lMnOp1rStUvWxYzAbCdEfGh0', // slothr.us
+  'Djp74iqXEJaTwLnkgtgG4m2sGkns2B8OYRVmYJfKCAoJqEjXu7dHu9K1cNz6FmRTX8wQp2vLB4yJ7g', //slothr.us
 ];
 const DEVICE_LOCK_ROUTE_PATHS = [
   '/api/device-locks',

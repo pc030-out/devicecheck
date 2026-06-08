@@ -12,12 +12,15 @@ Small Node.js service for Render deployment that stores a one-to-one mapping bet
 ## Endpoints
 
 ### `GET /health`
+
 Returns service and database health.
 
 ### `GET /api/device-locks?deviceID=...&ipAddress=...`
+
 Looks up an existing mapping.
 
 ### `POST /api/device-locks`
+
 Creates or validates a mapping.
 
 Request body:
@@ -32,9 +35,11 @@ Request body:
 `ipAddress` is optional if you want the backend to use the request IP.
 
 ### `GET /api/calendly/availability?startTime=ISO_DATE`
+
 Checks if a specific time window is available for the configured Calendly event type.
 
 ### `POST /api/calendly/book`
+
 Creates a Calendly booking directly (no Calendly-hosted UI redirect required).
 
 Request body:
@@ -46,7 +51,7 @@ Request body:
   "timeslot": "2026-05-12T17:00:00.000Z",
   "timezone": "America/New_York",
   "inviteCode": "abc123...",
-  "meetingLink": "https://hirelia.us/meeting/abc123",
+  "meetingLink": "https://slothr.us/meeting/abc123",
   "note": "Optional note"
 }
 ```
@@ -56,9 +61,11 @@ Request body:
 1. Copy `.env.example` to `.env`
 2. Set `DATABASE_URL`
 3. Set Calendly variables if booking API is needed:
-  - `CALENDLY_API_TOKEN`
-  - `CALENDLY_EVENT_TYPE_URI`
-  - `CALENDLY_SLOT_MINUTES` (optional, default `30`)
+
+- `CALENDLY_API_TOKEN`
+- `CALENDLY_EVENT_TYPE_URI`
+- `CALENDLY_SLOT_MINUTES` (optional, default `30`)
+
 3. Run:
 
 ```bash
@@ -72,15 +79,13 @@ npm run dev
 Run this from the repo root after setting `CALENDLY_API_TOKEN` in `backend/.env`:
 
 ```bash
-set +H && set -a && source backend/.env && set +a && node -e "
-const t = process.env.CALENDLY_API_TOKEN;
-fetch('https://api.calendly.com/users/me', { headers: { Authorization: 'Bearer ' + t } })
-  .then(r => r.json())
-  .then(u => fetch('https://api.calendly.com/event_types?user=' + u.resource.uri, { headers: { Authorization: 'Bearer ' + t } }))
-  .then(r => r.json())
-  .then(d => d.collection.forEach(e => console.log(e.kind, '|', e.name, '|', e.uri)))
-  .catch(console.error)
-"
+curl --request GET \
+  --url https://api.calendly.com/users/me \
+  --header "authorization: Bearer your_api_token"
+
+curl --request GET \
+  --url "https://api.calendly.com/event_types?user=$USER_URI" \
+  --header "authorization: Bearer $CALENDLY_API_TOKEN"
 ```
 
 Example output:
@@ -125,11 +130,13 @@ curl "https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates"
 ```
 
 Example:
+
 ```bash
 curl "https://api.telegram.org/bot123456789:ABCDEfghIjklmnoPQRstuvWXYZ/getUpdates"
 ```
 
 4. Look for the response JSON. Find your message in the results:
+
 ```json
 {
   "ok": true,
@@ -247,6 +254,7 @@ Example message: `Parallel Studios Verification Code: 123456`
    - `CALENDLY_API_TOKEN`
    - `CALENDLY_EVENT_TYPE_URI`
    - `TELEGRAM_BOT_TOKEN` (from BotFather)
-  - `TELEGRAM_CHAT_ID` (private chat ID or supergroup ID from getUpdates API)
+
+- `TELEGRAM_CHAT_ID` (private chat ID or supergroup ID from getUpdates API)
 
 You can also use `backend/render.yaml` as the blueprint.
