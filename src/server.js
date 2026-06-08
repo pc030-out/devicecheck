@@ -909,7 +909,9 @@ async function startServer() {
       throw err;
     }
   } else {
-    console.warn('DATABASE_URL not set — skipping DB initialization (smoke-test mode).');
+    console.warn(
+      'DATABASE_URL not set — skipping DB initialization (smoke-test mode).'
+    );
   }
 
   app.listen(port, () => {
