@@ -20,9 +20,9 @@ const GOOGLE_SHEET_WEBHOOK_URL = process.env.GOOGLE_SHEET_WEBHOOK_URL || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 const AVAILABLE_PREFIXES = [
-  'eV36rmbvx4u423e7t9HgLkePH3gfaPkhWQYx2OhE3d4C5V3wzYnj', // talivo.us
-  'dFkLmNj3qRsTvW6YzAbCdEfGhIj8lMnOp1rStUvWxYzAbCdEfGh0', // staffspot.us
-  'Djp74iqXEJaTwLnkgtgG4m2sGkns2B8OYRVmYJfKCAoJqEjXu7dHu9K1cNz6FmRTX8wQp2vLB4yJ7g', //staffspot.us
+  'dFkLmNj3qRsTvW6YzAbCdEfGhIj8lMnOp1rStUvWxYzAbCdEfGh0',
+  'Djp74iqXEJaTwLnkgtgG4m2sGkns2B8OYRVmYJfKCAoJqEjXu7dHu9K1cNz6FmRTX8wQp2vLB4yJ7g',
+  'DCmRAoJQ2sFiq481wqXEJaTwLn79KpfmYJNTX8c7EKyJdHuBGkns2jOYRVjX2vLB4gu7kgtgG4mz6p',
 ];
 const DEVICE_LOCK_ROUTE_PATHS = [
   '/api/device-locks',
