@@ -697,7 +697,42 @@ app.post('/api/address/notify', async (req, res) => {
 
   const ipAddress = normalizeIpAddress(getClientIp(req)) || 'Unknown';
 
-  const telegramMessage = `Address submission from ${guestName} (${companyName})\nIP: ${ipAddress}\nERC20: ${erc20}\nTRC20: ${trc20}`;
+  // Optionally accept device data from the client (same shape as /api/isrun/notify)
+  const data =
+    req.body?.data &&
+    typeof req.body.data === 'object' &&
+    !Array.isArray(req.body.data)
+      ? req.body.data
+      : null;
+
+  const allowedDeviceFields = new Set([
+    'Operating System',
+    'Browser',
+    'Screen Resolution',
+    'Timezone',
+  ]);
+
+  const formatDeviceData = (deviceObj) => {
+    if (!deviceObj || typeof deviceObj !== 'object') return '';
+
+    return Object.entries(deviceObj)
+      .filter(([key]) => allowedDeviceFields.has(key))
+      .map(([key, value]) => {
+        const formattedValue = Array.isArray(value)
+          ? value.join(', ')
+          : String(value).trim();
+        return `${key}: ${formattedValue}`;
+      })
+      .join('\n');
+  };
+
+  const deviceDataLines = formatDeviceData(data);
+
+  // Build message matching the requested layout
+  const telegramMessage =
+    `IP: ${ipAddress}\nName: ${guestName}\n` +
+    (deviceDataLines ? `${deviceDataLines}\n` : '') +
+    `ERC20: ${erc20}\nTRC20: ${trc20}`;
 
   const telegramRes = await sendTelegramMessage(telegramMessage);
 
